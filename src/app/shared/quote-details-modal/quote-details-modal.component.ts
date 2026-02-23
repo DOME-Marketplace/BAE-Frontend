@@ -1023,6 +1023,13 @@ export class QuoteDetailsModalComponent implements OnInit, OnChanges {
       ? 'Are you sure you want to cancel this tender? This will also cancel all related provider invites.'
       : 'Are you sure you want to cancel this quote?';
     this.confirmDialogButtonText = isCoordinator ? 'Cancel Tender' : 'Cancel Quote';
+    const isCoordinator = this.getQuoteCategory() === QUOTE_CATEGORIES.COORDINATOR;
+
+    this.confirmDialogTitle = isCoordinator ? 'Cancel Tender' : 'Cancel Quote';
+    this.confirmDialogMessage = isCoordinator
+      ? 'Are you sure you want to cancel this tender? This will also cancel all related provider invites.'
+      : 'Are you sure you want to cancel this quote?';
+    this.confirmDialogButtonText = isCoordinator ? 'Cancel Tender' : 'Cancel Quote';
     this.confirmDialogButtonClass = 'px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500';
     this.confirmDialogCallback = () => {
       this.isProcessing = true;

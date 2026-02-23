@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -19,6 +19,7 @@ import { AttachmentModalComponent } from 'src/app/shared/attachment-modal/attach
 import { CreateTenderModalComponent } from 'src/app/shared/create-tender-modal/create-tender-modal.component';
 import { UI_ROLES, API_ROLES, UiRole, toApiRole } from 'src/app/models/roles.constants';
 import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, TENDER_RELATED_QUOTES_LABELS_CUSTOMER, TENDER_RELATED_QUOTES_LABELS_PROVIDER } from 'src/app/models/quote.constants';
+import { QUOTE_CATEGORIES, TENDER_CATEGORIES } from 'src/app/models/quote.constants';
 
 @Component({
   selector: 'app-quote-list',
@@ -38,6 +39,20 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
     
     <div class="w-full mx-auto px-6 py-8">
       <div class="flex justify-between items-center mb-6">
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Tenders Dashboard</h1>
+          <a
+            href="https://knowledgebase.dome-marketplace.eu/books/tailored-offering-guide"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Click here for the Tender process guide"
+            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+          >
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+            </svg>
+          </a>
+        </div>
         <div class="flex items-center gap-3">
           <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Tenders Dashboard</h1>
           <a
@@ -150,8 +165,25 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
           </svg>
           <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tenders found</h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No tender requests to display</p>
+          <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tenders found</h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No tender requests to display</p>
         </div>
         
+        <!-- Provider View Header (matches Quote layout) -->
+        <div *ngIf="filteredQuotes.length > 0 && selectedRole === UI_ROLES.SELLER" class="bg-gray-50 dark:bg-gray-800 px-6 py-3">
+          <div class="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+            <div class="col-span-2">REQUEST DATE</div>
+            <div class="col-span-3">CUSTOMER</div>
+            <div class="col-span-4">TITLE</div>
+            <div class="col-span-1">STATUS</div>
+            <div class="col-span-2">ACTIONS</div>
+          </div>
+        </div>
+
+        <!-- Buyer View Header (Coordinator quotes) -->
+        <div *ngIf="filteredQuotes.length > 0 && selectedRole === UI_ROLES.BUYER" class="bg-gray-50 dark:bg-gray-800 px-6 py-3">
+          <div class="grid grid-cols-16 gap-4 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+            <div class="col-span-1">EXPAND</div>
         <!-- Provider View Header (matches Quote layout) -->
         <div *ngIf="filteredQuotes.length > 0 && selectedRole === UI_ROLES.SELLER" class="bg-gray-50 dark:bg-gray-800 px-6 py-3">
           <div class="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -172,6 +204,7 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
             <div class="col-span-2">TENDER START DATE</div>
             <div class="col-span-2">TENDER END DATE</div>
             <div class="col-span-2">ATTACHMENTS</div>
+            <div class="col-span-4">ACTIONS</div>
             <div class="col-span-4">ACTIONS</div>
           </div>
         </div>
@@ -309,12 +342,150 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
               <!-- Actions -->
               <div class="col-span-4 flex flex-wrap items-center gap-2">
                 <!-- Details Button (matching Quote style) - Always visible -->
+        <!-- ==================== PROVIDER VIEW ROWS (matches Quote layout) ==================== -->
+        <ng-container *ngIf="selectedRole === UI_ROLES.SELLER">
+          <div *ngFor="let quote of filteredQuotes" class="quote-row">
+            <div class="grid grid-cols-12 gap-4 items-center px-6 py-4 border-b border-gray-100 dark:border-gray-600 transition-colors"
+                 [class.bg-gray-50]="isQuoteFinalized(quote)"
+                 [class.dark:bg-gray-800]="isQuoteFinalized(quote)"
+                 [class.hover:bg-gray-50]="!isQuoteFinalized(quote)"
+                 [class.dark:hover:bg-gray-800]="!isQuoteFinalized(quote)"
+                 [attr.data-quote-id]="quote.id">
+
+              <!-- Request Date -->
+              <div class="col-span-2 text-sm text-gray-600 dark:text-gray-400">
+                {{ quote.quoteDate | date:'dd-MM-yyyy' }}
+              </div>
+
+              <!-- Customer/Buyer Name -->
+              <div class="col-span-3 text-sm font-medium text-gray-900 dark:text-white">
+                {{ getBuyerName(quote) }}
+              </div>
+
+              <!-- Title -->
+              <div class="col-span-4 text-sm text-gray-700 dark:text-gray-300" [title]="quote.description || '(no title)'">
+                {{ getTruncatedTitle(quote.description) }}
+              </div>
+
+              <!-- Status -->
+              <div class="col-span-1">
+                <span class="status-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                      [ngClass]="getStateClass(getQuoteItemState(quote))">
+                  {{ getQuoteItemState(quote) }}
+                </span>
+              </div>
+
+              <!-- Actions (Chat + Details only - matching Quote layout) -->
+              <div class="col-span-2 flex items-center gap-2">
+                <!-- Chat -->
+                <button
+                  [disabled]="isActionDisabled(quote, 'chat')"
+                  (click)="openChat(quote)"
+                  [class]="getIconButtonClass(quote, 'chat', 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200')"
+                  title="Chat"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8L3 21l1.8-4A7.96 7.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </button>
+
+                <!-- View Details Button (matching Quote style) -->
+                <button
+                  [disabled]="isActionDisabled(quote, 'viewDetails')"
+                  (click)="viewDetails(quote)"
+                  class="px-3 py-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-1"
+                  [class.opacity-50]="isActionDisabled(quote, 'viewDetails')"
+                  [class.cursor-not-allowed]="isActionDisabled(quote, 'viewDetails')"
+                >
+                  Details
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- ==================== BUYER VIEW ROWS (Coordinator quotes with expand) ==================== -->
+        <ng-container *ngIf="selectedRole === UI_ROLES.BUYER">
+          <div *ngFor="let quote of filteredQuotes" class="quote-row">
+            <div class="grid grid-cols-16 gap-4 items-center px-6 py-4 border-b border-gray-100 dark:border-gray-600 transition-colors"
+                 [class.bg-gray-50]="isQuoteFinalized(quote)"
+                 [class.dark:bg-gray-800]="isQuoteFinalized(quote)"
+                 [class.hover:bg-gray-50]="!isQuoteFinalized(quote)"
+                 [class.dark:hover:bg-gray-800]="!isQuoteFinalized(quote)"
+                 [attr.data-quote-id]="quote.id">
+
+              <!-- Quote Details (Expand/Collapse) -->
+              <div class="col-span-1 flex items-center gap-1">
+                <!-- Expand/Collapse arrow for coordinator quotes -->
+                <button
+                  *ngIf="isCoordinatorExpandable(quote)"
+                  (click)="toggleExpand(quote)"
+                  class="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                  [title]="isExpanded(quote.id) ? 'Collapse related quotes' : 'Expand to view related quotes'"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform" [class.rotate-180]="isExpanded(quote.id)" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Title -->
+              <div class="col-span-3 text-sm font-medium text-gray-900 dark:text-white" [title]="quote.description || '(no title)'">
+                {{ getTruncatedTitle(quote.description) }}
+              </div>
+
+              <!-- Status -->
+              <div class="col-span-2">
+                <span class="status-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                      [ngClass]="getStateClass(getQuoteItemState(quote))">
+                  {{ getQuoteItemState(quote) }}
+                </span>
+              </div>
+
+              <!-- Expected Fulfillment Start Date -->
+              <div class="col-span-2 text-sm text-gray-600 dark:text-gray-400">
+                {{ quote.expectedFulfillmentStartDate | date:'dd/MM/yyyy' }}
+              </div>
+
+              <!-- Effective Completion Date -->
+              <div class="col-span-2 text-sm text-gray-600 dark:text-gray-400">
+                {{ quote.effectiveQuoteCompletionDate | date:'dd/MM/yyyy' }}
+              </div>
+
+              <!-- Attachments Column -->
+              <div class="col-span-2 text-sm">
+                <div *ngIf="hasAttachment(quote)" class="flex items-center space-x-1">
+                  <button
+                    [disabled]="isActionDisabled(quote, 'downloadAttachment')"
+                    (click)="downloadAttachment(quote)"
+                    class="flex items-center space-x-1 text-purple-600 hover:text-purple-800 disabled:text-gray-300"
+                    title="Download attachment"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    <span class="text-xs truncate max-w-[100px]">{{ getAttachmentName(quote) }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div class="col-span-4 flex flex-wrap items-center gap-2">
+                <!-- Details Button (matching Quote style) - Always visible -->
                 <button
                   (click)="viewDetails(quote)"
                   class="px-3 py-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-1"
                 >
                   Details
+                  (click)="viewDetails(quote)"
+                  class="px-3 py-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-1"
+                >
+                  Details
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
@@ -352,6 +523,39 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
                   Start
                 </button>
 
+                <!-- Edit (only for coordinator quotes in pending/draft status) -->
+                <button
+                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && !isCoordinatorExpandable(quote)"
+                  (click)="editTender(quote)"
+                  class="px-2 py-1 text-xs font-medium transition-colors rounded border text-green-600 hover:text-green-800 border-green-200 hover:bg-green-50"
+                  title="Edit tender"
+                >
+                  Edit
+                </button>
+
+                <!-- Broadcast Message (only for coordinator quotes when expanded) -->
+                <button
+                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && isCoordinatorExpandable(quote) && isExpanded(quote.id)"
+                  (click)="openBroadcastModal(quote)"
+                  class="px-2 py-1 text-xs font-medium transition-colors rounded border text-fuchsia-600 hover:text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-50"
+                  title="Broadcast message to all invited providers"
+                >
+                  Broadcast
+                </button>
+
+                <!-- Test: Start Tender (for coordinator quotes in pre-launched status) -->
+                <button
+                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && getPrimaryState(quote) === 'inProgress'"
+                  (click)="simulateStartTender(quote)"
+                  class="px-2 py-1 text-xs font-medium transition-colors rounded border text-orange-600 hover:text-orange-800 border-orange-200 hover:bg-orange-50 flex items-center gap-1"
+                  title="[TEST] Start tender - updates status to 'launched'"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Start
+                </button>
+
                 <!-- Test: Close Tender (for coordinator quotes in launched status) -->
                 <button
                   *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && getPrimaryState(quote) === QUOTE_STATUSES.APPROVED"
@@ -366,25 +570,50 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
                 </button>
               </div>
             </div>
+                <!-- Test: Close Tender (for coordinator quotes in launched status) -->
+                <button
+                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && getPrimaryState(quote) === 'approved'"
+                  (click)="simulateCloseTender(quote)"
+                  class="px-2 py-1 text-xs font-medium transition-colors rounded border text-purple-600 hover:text-purple-800 border-purple-200 hover:bg-purple-50 flex items-center gap-1"
+                  title="[TEST] Close tender - updates status to 'closed'"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Close
+                </button>
+              </div>
+            </div>
 
           <!-- Expanded Related Quotes View -->
           <div *ngIf="isExpanded(quote.id)" class="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600">
+          <div *ngIf="isExpanded(quote.id)" class="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600">
             <div class="ml-8">
+              <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Related Provider Quotes</h4>
               <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Related Provider Quotes</h4>
               
               <!-- Loading State -->
               <div *ngIf="isLoadingRelatedQuotes(quote.id)" class="flex items-center justify-center py-4">
                 <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                 <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading related quotes...</span>
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading related quotes...</span>
               </div>
 
+              <!-- Related Quotes Table (matching Quote layout) -->
+              <div *ngIf="!isLoadingRelatedQuotes(quote.id) && getRelatedQuotes(quote.id).length > 0" class="bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
               <!-- Related Quotes Table (matching Quote layout) -->
               <div *ngIf="!isLoadingRelatedQuotes(quote.id) && getRelatedQuotes(quote.id).length > 0" class="bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
                 <!-- Header -->
                 <div class="bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-600">
                   <div class="grid grid-cols-12 gap-4 text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">
                     <div class="col-span-4">Provider</div>
+                <div class="bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-600">
+                  <div class="grid grid-cols-12 gap-4 text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">
+                    <div class="col-span-4">Provider</div>
                     <div class="col-span-2">Status</div>
+                    <div class="col-span-3">Attachments</div>
+                    <div class="col-span-3">Actions</div>
                     <div class="col-span-3">Attachments</div>
                     <div class="col-span-3">Actions</div>
                   </div>
@@ -393,14 +622,20 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
                 <!-- Related Quote Rows -->
                 <div *ngFor="let relatedQuote of getRelatedQuotes(quote.id); let last = last"
                      class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                <div *ngFor="let relatedQuote of getRelatedQuotes(quote.id); let last = last"
+                     class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                      [class.border-b]="!last"
+                     [class.border-gray-200]="!last"
+                     [class.dark:border-gray-600]="!last">
                      [class.border-gray-200]="!last"
                      [class.dark:border-gray-600]="!last">
                   <div class="grid grid-cols-12 gap-4 items-center text-sm">
                     <!-- Provider -->
                     <div class="col-span-4 text-gray-900 dark:text-white font-medium">
+                    <div class="col-span-4 text-gray-900 dark:text-white font-medium">
                       {{ getProviderName(relatedQuote) }}
                     </div>
+
 
                     <!-- Status -->
                     <div class="col-span-2">
@@ -410,7 +645,9 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
                       </span>
                     </div>
 
+
                     <!-- Attachments -->
+                    <div class="col-span-3">
                     <div class="col-span-3">
                       <button
                         *ngIf="hasAttachment(relatedQuote)"
@@ -427,9 +664,12 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
                     
                     <!-- Actions (matching Quote layout: Chat + Details button) -->
                     <div class="col-span-3 flex items-center gap-2">
+                    <!-- Actions (matching Quote layout: Chat + Details button) -->
+                    <div class="col-span-3 flex items-center gap-2">
                       <!-- Chat -->
                       <button
                         (click)="openChat(relatedQuote)"
+                        class="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-100 transition-colors"
                         class="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-100 transition-colors"
                         title="Chat"
                       >
@@ -439,7 +679,14 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
                       </button>
 
                       <!-- View Details Button (matching Quote style) -->
+                      <!-- View Details Button (matching Quote style) -->
                       <button
+                        (click)="viewDetails(relatedQuote)"
+                        class="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors flex items-center gap-1"
+                      >
+                        Details
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         (click)="viewDetails(relatedQuote)"
                         class="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors flex items-center gap-1"
                       >
@@ -456,6 +703,8 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
               <!-- No Related Quotes -->
               <div *ngIf="!isLoadingRelatedQuotes(quote.id) && getRelatedQuotes(quote.id).length === 0"
                    class="text-center py-6 text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+              <div *ngIf="!isLoadingRelatedQuotes(quote.id) && getRelatedQuotes(quote.id).length === 0"
+                   class="text-center py-6 text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
                 <svg class="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -464,6 +713,7 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
             </div>
           </div>
         </div>
+        </ng-container>
         </ng-container>
       </div>
     </div>
@@ -477,6 +727,17 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
       confirmButtonClass="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
       (confirm)="deleteQuote()"
       (cancel)="showDeleteConfirm = false"
+    ></app-confirm-dialog>
+
+    <!-- Generic Confirmation Dialog -->
+    <app-confirm-dialog
+      [isOpen]="showGenericConfirm"
+      [title]="genericConfirmTitle"
+      [message]="genericConfirmMessage"
+      [confirmText]="genericConfirmButtonText"
+      [confirmButtonClass]="genericConfirmButtonClass"
+      (confirm)="genericConfirmCallback && genericConfirmCallback()"
+      (cancel)="showGenericConfirm = false"
     ></app-confirm-dialog>
 
     <!-- Generic Confirmation Dialog -->
@@ -534,7 +795,10 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
       [quoteId]="selectedQuoteId"
       [currentUserRole]="getModalUserRole()"
       [currentUserId]="currentUserId || ''"
+      [currentUserRole]="getModalUserRole()"
+      [currentUserId]="currentUserId || ''"
       (close)="closeQuoteDetailsModal()"
+      (quoteUpdated)="onQuoteUpdated($event)"
       (quoteUpdated)="onQuoteUpdated($event)"
     ></app-quote-details-modal>
 
@@ -620,6 +884,7 @@ import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, T
     
     .status-accepted {
       @apply bg-emerald-100 text-emerald-800;
+      @apply bg-emerald-100 text-emerald-800;
     }
     
     .status-unknown {
@@ -676,6 +941,7 @@ export class TenderListComponent implements OnInit {
   readonly UI_ROLES = UI_ROLES;
   readonly QUOTE_CATEGORIES = QUOTE_CATEGORIES;
   readonly QUOTE_STATUSES = QUOTE_STATUSES;
+  readonly QUOTE_CATEGORIES = QUOTE_CATEGORIES;
 
   // Filtering
   statusFilter: string = '';
@@ -696,6 +962,14 @@ export class TenderListComponent implements OnInit {
   showBroadcastModal = false;
   broadcastForCoordinatorId: string | null = null;
   broadcastMessage: string = '';
+
+  // Generic Confirmation Dialog
+  showGenericConfirm = false;
+  genericConfirmTitle = '';
+  genericConfirmMessage = '';
+  genericConfirmButtonText = 'Confirm';
+  genericConfirmButtonClass = 'px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500';
+  genericConfirmCallback: (() => void) | null = null;
 
   // Generic Confirmation Dialog
   showGenericConfirm = false;
@@ -797,7 +1071,24 @@ export class TenderListComponent implements OnInit {
         });
         
         // If in seller mode, load coordinator states for tendering quotes BEFORE filtering
+        // If in seller mode, load coordinator states for tendering quotes BEFORE filtering
         if (this.selectedRole === UI_ROLES.SELLER) {
+          this.loadCoordinatorStatesForTenderingQuotes().subscribe({
+            next: () => {
+              console.log('All coordinator states loaded, filtering quotes...');
+              this.filterQuotesByStatus();
+              this.loading = false;
+            },
+            error: (error) => {
+              console.error('Error loading coordinator states:', error);
+              this.filterQuotesByStatus();
+              this.loading = false;
+            }
+          });
+        } else {
+          this.filterQuotesByStatus();
+          this.loading = false;
+        }
           this.loadCoordinatorStatesForTenderingQuotes().subscribe({
             next: () => {
               console.log('All coordinator states loaded, filtering quotes...');
@@ -847,6 +1138,7 @@ export class TenderListComponent implements OnInit {
       state: this.mapTenderStateToQuoteState(tender.state),
       // Map category back: 'tendering' -> 'tender', 'coordinator' -> 'coordinator'
       category: tender.category === 'tendering' ? QUOTE_CATEGORIES.TENDER : QUOTE_CATEGORIES.COORDINATOR,
+      category: tender.category === TENDER_CATEGORIES.TENDERING ? QUOTE_CATEGORIES.TENDER : tender.category,
       externalId: tender.external_id,
       relatedParty: [
         ...tender.selectedProviders.map(id => ({
@@ -896,9 +1188,13 @@ export class TenderListComponent implements OnInit {
   filterQuotesByStatus() {
     let quotesToFilter: Quote[];
 
+    let quotesToFilter: Quote[];
+
     if (!this.statusFilter) {
       quotesToFilter = [...this.quotes];
+      quotesToFilter = [...this.quotes];
     } else {
+      quotesToFilter = this.quotes.filter(quote => {
       quotesToFilter = this.quotes.filter(quote => {
         const primaryState = this.getPrimaryState(quote);
         return primaryState === this.statusFilter;
@@ -938,6 +1234,40 @@ export class TenderListComponent implements OnInit {
     } else {
       this.filteredQuotes = quotesToFilter;
     }
+
+    // For providers: filter out tendering quotes whose coordinator is still in draft status
+    if (this.selectedRole === UI_ROLES.SELLER) {
+      this.filteredQuotes = quotesToFilter.filter(quote => {
+        // Only filter tendering quotes (note: backend sends 'tendering' but it's mapped to 'tender' in Quote model)
+        if (quote.category !== QUOTE_CATEGORIES.TENDER) {
+          console.log(`[FILTER] Quote ${this.extractShortId(quote.id)} - category: ${quote.category}, keeping (not tender)`);
+          return true;
+        }
+
+        // Check if we have the coordinator state
+        if (!quote.externalId) {
+          console.log(`[FILTER] Tendering quote ${this.extractShortId(quote.id)} - no externalId, keeping`);
+          return true; // Keep if no externalId
+        }
+
+        const coordinatorState = this.coordinatorQuoteStatesMap.get(quote.externalId);
+        console.log(`[FILTER] Tendering quote ${this.extractShortId(quote.id)} - coordinator: ${this.extractShortId(quote.externalId)}, state: ${coordinatorState || 'NOT_LOADED'}`);
+
+        // If coordinator state not loaded yet, hide it (should be loaded by loadCoordinatorStatesForTenderingQuotes)
+        if (!coordinatorState) {
+          console.log(`[FILTER] Coordinator state not loaded yet for ${this.extractShortId(quote.externalId)}, hiding`);
+          return false;
+        }
+
+        // Filter out if coordinator is in 'pending' state (which maps to 'draft' in GUI)
+        const shouldShow = coordinatorState !== 'pending';
+        console.log(`[FILTER] Coordinator state is ${coordinatorState}, ${shouldShow ? 'SHOWING' : 'HIDING'} quote`);
+        return shouldShow;
+      });
+
+    } else {
+      this.filteredQuotes = quotesToFilter;
+    }
   }
 
 
@@ -967,6 +1297,7 @@ export class TenderListComponent implements OnInit {
     const tender: Tender = {
       id: quote.id,
       category: quote.category === QUOTE_CATEGORIES.COORDINATOR ? 'coordinator' : 'tendering',
+      category: quote.category === QUOTE_CATEGORIES.COORDINATOR ? TENDER_CATEGORIES.COORDINATOR : TENDER_CATEGORIES.TENDERING,
       state: this.mapQuoteStateToTenderState(primaryState),
       responseDeadline: quote.expectedFulfillmentStartDate || quote.effectiveQuoteCompletionDate || new Date().toISOString(),
       tenderNote: quote.description || '',
@@ -1003,6 +1334,64 @@ export class TenderListComponent implements OnInit {
   closeQuoteDetailsModal() {
     this.showQuoteDetailsModal = false;
     this.selectedQuoteId = null;
+  }
+
+  /**
+   * Show generic confirmation dialog
+   */
+  showConfirmation(
+    title: string,
+    message: string,
+    callback: () => void,
+    buttonText: string = 'Confirm',
+    buttonClass: string = 'px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+  ) {
+    this.genericConfirmTitle = title;
+    this.genericConfirmMessage = message;
+    this.genericConfirmButtonText = buttonText;
+    this.genericConfirmButtonClass = buttonClass;
+    this.genericConfirmCallback = () => {
+      callback();
+      this.showGenericConfirm = false;
+    };
+    this.showGenericConfirm = true;
+  }
+
+  /**
+   * Convert UI role to modal role format ('customer' or 'seller')
+   */
+  getModalUserRole(): 'customer' | 'seller' {
+    return this.selectedRole === UI_ROLES.BUYER ? 'customer' : 'seller';
+  }
+
+  /**
+   * Handle quote updates from the details modal
+   */
+  onQuoteUpdated(updatedQuote: Quote) {
+    // Check if this is a related (tendering) quote inside an expanded coordinator view
+    for (const [coordinatorId, relatedList] of this.relatedQuotesMap.entries()) {
+      if (relatedList.some(q => q.id === updatedQuote.id)) {
+        const coordinator = this.quotes.find(q => q.id === coordinatorId);
+        if (coordinator) {
+          this.loadRelatedQuotes(coordinator);
+        }
+        const shortId = this.extractShortId(updatedQuote.id);
+        const state = this.getPrimaryState(updatedQuote);
+        this.notificationService.showSuccess(`Quote ${shortId} has been updated to ${state}.`);
+        return;
+      }
+    }
+
+    // Otherwise update in the main list
+    const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+    if (index !== -1) {
+      this.quotes[index] = updatedQuote;
+      this.filterQuotesByStatus();
+    }
+
+    const shortId = this.extractShortId(updatedQuote.id);
+    const state = this.getPrimaryState(updatedQuote);
+    this.notificationService.showSuccess(`Quote ${shortId} has been updated to ${state}.`);
   }
 
   /**
@@ -1131,9 +1520,20 @@ export class TenderListComponent implements OnInit {
   }
 
   private executeBroadcastMessage() {
+    this.showConfirmation(
+      'Broadcast Message',
+      'Are you sure you want to broadcast this message to all the invited providers?',
+      () => this.executeBroadcastMessage(),
+      'Send',
+      'px-4 py-2 text-sm font-medium text-white bg-fuchsia-600 border border-transparent rounded-md hover:bg-fuchsia-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500'
+    );
+  }
+
+  private executeBroadcastMessage() {
     this.isBroadcastSending = true;
 
     // Ensure related quotes are loaded
+    const related = this.getRelatedQuotes(this.broadcastForCoordinatorId!);
     const related = this.getRelatedQuotes(this.broadcastForCoordinatorId!);
     if (!related || related.length === 0) {
       // Try to load if not present, then send
@@ -1143,6 +1543,7 @@ export class TenderListComponent implements OnInit {
       }
     }
 
+    const quotesToMessage = this.getRelatedQuotes(this.broadcastForCoordinatorId!).filter(q => q.category === QUOTE_CATEGORIES.TENDER);
     const quotesToMessage = this.getRelatedQuotes(this.broadcastForCoordinatorId!).filter(q => q.category === QUOTE_CATEGORIES.TENDER);
     if (quotesToMessage.length === 0) {
       this.notificationService.showError('No related provider quotes found to broadcast to.');
@@ -1338,6 +1739,32 @@ export class TenderListComponent implements OnInit {
       'Accept',
       'px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
     );
+
+    this.showConfirmation(
+      'Accept Tender Request',
+      'Are you sure you want to accept this tender request?',
+      () => {
+        console.log('Accepting tendering quote:', quote.id);
+
+        this.quoteService.updateQuoteStatus(quote.id!, 'inProgress').subscribe({
+          next: (updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            console.log('Tendering quote successfully accepted');
+            this.notificationService.showSuccess(`Tender request ${shortId} has been accepted and is now in progress.`);
+          },
+          error: (error: Error) => {
+            console.error('Error accepting tendering quote:', error);
+            this.notificationService.showError(`Error accepting tender request: ${error.message || 'Unknown error'}`);
+          }
+        });
+      },
+      'Accept',
+      'px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+    );
   }
 
   cancelTenderingQuote(quote: Quote) {
@@ -1368,10 +1795,69 @@ export class TenderListComponent implements OnInit {
       'Cancel Request',
       'px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
     );
+
+    this.showConfirmation(
+      'Cancel Tender Request',
+      'Are you sure you want to cancel this tender request?\n\nThis action cannot be undone.',
+      () => {
+        console.log('Cancelling tendering quote:', quote.id);
+
+        this.quoteService.updateQuoteStatus(quote.id!, 'cancelled').subscribe({
+          next: (updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            console.log('Tendering quote successfully cancelled');
+            this.notificationService.showSuccess(`Tender request ${shortId} has been cancelled.`);
+          },
+          error: (error: Error) => {
+            console.error('Error cancelling tendering quote:', error);
+            this.notificationService.showError(`Error cancelling tender request: ${error.message || 'Unknown error'}`);
+          }
+        });
+      },
+      'Cancel Request',
+      'px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
+    );
   }
 
   simulateStartTender(quote: Quote) {
     const shortId = this.extractShortId(quote.id);
+    const todayFormatted = this.getTodayForAPI();
+
+    this.showConfirmation(
+      'Start Tender',
+      `Are you sure you want to start this tender?\n\nWarning: The Tender Start Date will be updated to today (${todayFormatted}).`,
+      () => {
+        this.quoteService.updateQuoteStatus(quote.id!, 'approved').pipe(
+          switchMap((updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            return this.quoteService.updateQuoteDate(quote.id!, todayFormatted, 'expectedFulfillment');
+          })
+        ).subscribe({
+          next: (updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            this.notificationService.showSuccess(`Tender ${shortId} started. Start date set to today.`);
+          },
+          error: (error: Error) => {
+            console.error('Error starting tender:', error);
+            this.notificationService.showError(`Error starting tender: ${error.message || 'Unknown error'}`);
+          }
+        });
+      },
+      'Start Tender',
+      'px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500'
+    );
     const todayFormatted = this.getTodayForAPI();
 
     this.showConfirmation(
@@ -1450,6 +1936,47 @@ export class TenderListComponent implements OnInit {
     const month = (today.getMonth() + 1).toString().padStart(2, '0');
     const year = today.getFullYear();
     return `${day}-${month}-${year}`;
+    const todayFormatted = this.getTodayForAPI();
+
+    this.showConfirmation(
+      'Close Tender',
+      `Are you sure you want to close this tender?\n\nWarning: The Tender End Date will be updated to today (${todayFormatted}).`,
+      () => {
+        this.quoteService.updateQuoteStatus(quote.id!, 'accepted').pipe(
+          switchMap((updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            return this.quoteService.updateQuoteDate(quote.id!, todayFormatted, 'effective');
+          })
+        ).subscribe({
+          next: (updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            this.notificationService.showSuccess(`Tender ${shortId} closed. End date set to today.`);
+          },
+          error: (error: Error) => {
+            console.error('Error closing tender:', error);
+            this.notificationService.showError(`Error closing tender: ${error.message || 'Unknown error'}`);
+          }
+        });
+      },
+      'Close Tender',
+      'px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500'
+    );
+  }
+
+  private getTodayForAPI(): string {
+    const today = new Date();
+    const day = today.getDate().toString().padStart(2, '0');
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}-${month}-${year}`;
   }
 
   acceptQuoteCustomer(quote: Quote) {
@@ -1480,10 +2007,47 @@ export class TenderListComponent implements OnInit {
       'Accept',
       'px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
     );
+
+    this.showConfirmation(
+      'Accept Quotation',
+      'Are you sure you want to accept the quotation?',
+      () => {
+        console.log('Buyer accepting quotation:', quote.id);
+
+        this.quoteService.updateQuoteStatus(quote.id!, 'accepted').subscribe({
+          next: (updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            console.log('Quotation successfully accepted by buyer');
+            this.notificationService.showSuccess(`Quotation ${shortId} has been accepted successfully.`);
+          },
+          error: (error: any) => {
+            console.error('Error accepting quotation:', error);
+            this.notificationService.showError(`Error accepting quotation: ${error?.message || 'Unknown error'}`);
+          }
+        });
+      },
+      'Accept',
+      'px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+    );
   }
 
   acceptTenderQuote(quote: Quote) {
     const shortId = this.extractShortId(quote.id);
+
+    this.showConfirmation(
+      'Accept Tender Quote',
+      'Are you sure you want to accept this quote? Every other quote in this tender will be Rejected.',
+      () => this.executeAcceptTenderQuote(quote, shortId),
+      'Accept',
+      'px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+    );
+  }
+
+  private executeAcceptTenderQuote(quote: Quote, shortId: string) {
 
     this.showConfirmation(
       'Accept Tender Quote',
@@ -1594,10 +2158,62 @@ export class TenderListComponent implements OnInit {
       'Reject',
       'px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
     );
+
+    this.showConfirmation(
+      'Reject Tender',
+      'Are you sure you want to reject this tender?\n\nThis action cannot be undone.',
+      () => {
+        console.log('Buyer rejecting tender:', quote.id);
+
+        this.quoteService.updateQuoteStatus(quote.id!, 'rejected').subscribe({
+          next: (updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            console.log('Tender successfully rejected by buyer');
+            this.notificationService.showSuccess(`Tender ${shortId} has been rejected.`);
+          },
+          error: (error: any) => {
+            console.error('Error rejecting tender:', error);
+            this.notificationService.showError(`Error rejecting tender: ${error?.message || 'Unknown error'}`);
+          }
+        });
+      },
+      'Reject',
+      'px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
+    );
   }
 
   cancelQuote(quote: Quote) {
     const shortId = this.extractShortId(quote.id);
+
+    this.showConfirmation(
+      'Cancel Quote',
+      `Are you sure you want to cancel quote ${shortId}?\n\nThis action cannot be undone and will disable all other quote actions.`,
+      () => {
+        console.log('Cancelling quote:', quote.id);
+
+        this.quoteService.updateQuoteStatus(quote.id!, 'cancelled').subscribe({
+          next: (updatedQuote: Quote) => {
+            const index = this.quotes.findIndex(q => q.id === updatedQuote.id);
+            if (index !== -1) {
+              this.quotes[index] = updatedQuote;
+              this.filterQuotesByStatus();
+            }
+            console.log('Quote successfully cancelled');
+            this.notificationService.showSuccess(`Quote ${shortId} has been cancelled successfully.`);
+          },
+          error: (error: any) => {
+            console.error('Error cancelling quote:', error);
+            this.notificationService.showError(`Error cancelling quote: ${error?.message || 'Unknown error'}`);
+          }
+        });
+      },
+      'Cancel Quote',
+      'px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
+    );
 
     this.showConfirmation(
       'Cancel Quote',
@@ -1661,6 +2277,7 @@ export class TenderListComponent implements OnInit {
     }
 
     // Apply mapping only for coordinator quotes
+    if (quote.category === QUOTE_CATEGORIES.COORDINATOR) {
     if (quote.category === QUOTE_CATEGORIES.COORDINATOR) {
       return this.mapCoordinatorStatusToGUI(state);
     }
@@ -1893,6 +2510,7 @@ export class TenderListComponent implements OnInit {
    */
   isCoordinatorExpandable(quote: Quote): boolean {
     if (quote.category !== QUOTE_CATEGORIES.COORDINATOR) {
+    if (quote.category !== QUOTE_CATEGORIES.COORDINATOR) {
       return false;
     }
     
@@ -2084,6 +2702,18 @@ export class TenderListComponent implements OnInit {
   }
 
   /**
+   * Get buyer name from related party (for Provider view)
+   */
+  getBuyerName(quote: Quote): string {
+    if (!quote.relatedParty || quote.relatedParty.length === 0) {
+      return 'Unknown Customer';
+    }
+
+    const buyer = quote.relatedParty?.find(party => party.role?.toLowerCase() === 'buyer');
+    return buyer?.name || buyer?.id || 'Unknown Customer';
+  }
+
+  /**
    * Check if the coordinator quote allows accepting tendering quotes
    * Returns true if the coordinator quote is in 'inProgress' state
    */
@@ -2134,6 +2764,7 @@ export class TenderListComponent implements OnInit {
    */
   private loadCoordinatorQuoteState(coordinatorQuoteId: string): void {
     if (this.loadingCoordinatorStates.has(coordinatorQuoteId) ||
+    if (this.loadingCoordinatorStates.has(coordinatorQuoteId) ||
         this.coordinatorQuoteStatesMap.has(coordinatorQuoteId)) {
       return; // Already loading or loaded
     }
@@ -2146,13 +2777,19 @@ export class TenderListComponent implements OnInit {
         // Get the state from quoteItem
         const state = this.getQuoteItemState(coordinatorQuote);
 
+
         // Store the actual backend state (not the mapped GUI state)
         const backendState = this.getPrimaryState(coordinatorQuote);
         this.coordinatorQuoteStatesMap.set(coordinatorQuoteId, backendState);
 
+
         this.loadingCoordinatorStates.delete(coordinatorQuoteId);
 
+
         console.log(`Coordinator quote ${this.extractShortId(coordinatorQuoteId)} state: ${backendState} (GUI: ${state})`);
+
+        // Note: We don't call filterQuotesByStatus() here anymore since coordinator states
+        // are preloaded in parallel. This method is only used as a fallback for button permission checks.
 
         // Note: We don't call filterQuotesByStatus() here anymore since coordinator states
         // are preloaded in parallel. This method is only used as a fallback for button permission checks.
@@ -2169,17 +2806,73 @@ export class TenderListComponent implements OnInit {
   /**
    * Load coordinator states for all tendering quotes in parallel
    * Returns an observable that completes when all states are loaded
+   * Load coordinator states for all tendering quotes in parallel
+   * Returns an observable that completes when all states are loaded
    */
+  private loadCoordinatorStatesForTenderingQuotes(): Observable<void> {
   private loadCoordinatorStatesForTenderingQuotes(): Observable<void> {
     const externalIds = new Set<string>();
 
     // Collect unique externalIds from tendering quotes (mapped to 'tender' category in Quote model)
+
+    // Collect unique externalIds from tendering quotes (mapped to 'tender' category in Quote model)
     this.quotes.forEach(quote => {
+      if (quote.category === QUOTE_CATEGORIES.TENDER && quote.externalId) {
       if (quote.category === QUOTE_CATEGORIES.TENDER && quote.externalId) {
         externalIds.add(quote.externalId);
       }
     });
 
+    // If no tendering quotes, return completed observable
+    if (externalIds.size === 0) {
+      return of(void 0);
+    }
+
+    // Create an array of observables for each coordinator quote
+    const loadObservables = Array.from(externalIds).map(externalId => {
+      // Skip if already loaded or loading
+      if (this.coordinatorQuoteStatesMap.has(externalId)) {
+        return of(void 0);
+      }
+
+      console.log(`Loading coordinator quote state for: ${this.extractShortId(externalId)}`);
+      this.loadingCoordinatorStates.add(externalId);
+
+      return this.quoteService.getQuoteById(externalId).pipe(
+        map((coordinatorQuote: Quote) => {
+          const backendState = this.getPrimaryState(coordinatorQuote);
+          this.coordinatorQuoteStatesMap.set(externalId, backendState);
+          this.loadingCoordinatorStates.delete(externalId);
+          console.log(`Coordinator quote ${this.extractShortId(externalId)} state: ${backendState}`);
+        }),
+        catchError((error: Error) => {
+          console.error(`Failed to load coordinator quote state for ${this.extractShortId(externalId)}:`, error);
+          this.loadingCoordinatorStates.delete(externalId);
+          // Set to unknown state to prevent repeated failed attempts
+          this.coordinatorQuoteStatesMap.set(externalId, 'unknown');
+          return of(void 0); // Continue even if one fails
+        })
+      );
+    });
+
+    // Wait for all coordinator states to load in parallel
+    return forkJoin(loadObservables).pipe(
+      map(() => void 0)
+    );
+  }
+
+  /**
+   * Truncate title if longer than 50 characters
+   * @param title The title to potentially truncate
+   * @returns Truncated title with ellipsis if over 50 chars, or original title
+   */
+  getTruncatedTitle(title: string | undefined): string {
+    if (!title) return '(no title)';
+    const maxLength = 50;
+    if (title.length > maxLength) {
+      return title.substring(0, maxLength) + '...';
+    }
+    return title;
     // If no tendering quotes, return completed observable
     if (externalIds.size === 0) {
       return of(void 0);

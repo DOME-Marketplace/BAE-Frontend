@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -7,6 +7,7 @@ import { switchMap } from 'rxjs/operators';
 import { QuoteService } from '../../../quotes/services/quote.service';
 import { LocalStorageService } from 'src/app/services/local-storage.service';
 import { NotificationService } from 'src/app/services/notification.service';
+import { AccountServiceService } from 'src/app/services/account-service.service';
 import { Tender, TenderAttachment } from 'src/app/models/tender.model';
 import { Quote, QuoteStateType } from 'src/app/models/quote.model';
 import { LoginInfo } from 'src/app/models/interfaces';
@@ -17,7 +18,7 @@ import { ChatModalComponent } from 'src/app/shared/chat-modal/chat-modal.compone
 import { AttachmentModalComponent } from 'src/app/shared/attachment-modal/attachment-modal.component';
 import { CreateTenderModalComponent } from 'src/app/shared/create-tender-modal/create-tender-modal.component';
 import { UI_ROLES, API_ROLES, UiRole, toApiRole } from 'src/app/models/roles.constants';
-import { QUOTE_CATEGORIES, TENDER_CATEGORIES } from 'src/app/models/quote.constants';
+import { QUOTE_CATEGORIES, QUOTE_STATUSES, TENDER_COORDINATOR_STATUSES_LABELS, TENDER_RELATED_QUOTES_LABELS_CUSTOMER, TENDER_RELATED_QUOTES_LABELS_PROVIDER } from 'src/app/models/quote.constants';
 
 @Component({
   selector: 'app-quote-list',
@@ -204,7 +205,7 @@ import { QUOTE_CATEGORIES, TENDER_CATEGORIES } from 'src/app/models/quote.consta
               <div class="col-span-1">
                 <span class="status-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                       [ngClass]="getStateClass(getQuoteItemState(quote))">
-                  {{ getQuoteItemState(quote) }}
+                  {{ getStatusLabel(quote) }}
                 </span>
               </div>
 
@@ -274,7 +275,7 @@ import { QUOTE_CATEGORIES, TENDER_CATEGORIES } from 'src/app/models/quote.consta
               <div class="col-span-2">
                 <span class="status-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                       [ngClass]="getStateClass(getQuoteItemState(quote))">
-                  {{ getQuoteItemState(quote) }}
+                  {{ getStatusLabel(quote) }}
                 </span>
               </div>
 
@@ -340,7 +341,7 @@ import { QUOTE_CATEGORIES, TENDER_CATEGORIES } from 'src/app/models/quote.consta
 
                 <!-- Test: Start Tender (for coordinator quotes in pre-launched status) -->
                 <button
-                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && getPrimaryState(quote) === 'inProgress'"
+                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && getPrimaryState(quote) === QUOTE_STATUSES.IN_PROGRESS"
                   (click)="simulateStartTender(quote)"
                   class="px-2 py-1 text-xs font-medium transition-colors rounded border text-orange-600 hover:text-orange-800 border-orange-200 hover:bg-orange-50 flex items-center gap-1"
                   title="[TEST] Start tender - updates status to 'launched'"
@@ -353,7 +354,7 @@ import { QUOTE_CATEGORIES, TENDER_CATEGORIES } from 'src/app/models/quote.consta
 
                 <!-- Test: Close Tender (for coordinator quotes in launched status) -->
                 <button
-                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && getPrimaryState(quote) === 'approved'"
+                  *ngIf="quote.category === QUOTE_CATEGORIES.COORDINATOR && getPrimaryState(quote) === QUOTE_STATUSES.APPROVED"
                   (click)="simulateCloseTender(quote)"
                   class="px-2 py-1 text-xs font-medium transition-colors rounded border text-purple-600 hover:text-purple-800 border-purple-200 hover:bg-purple-50 flex items-center gap-1"
                   title="[TEST] Close tender - updates status to 'closed'"
@@ -405,7 +406,7 @@ import { QUOTE_CATEGORIES, TENDER_CATEGORIES } from 'src/app/models/quote.consta
                     <div class="col-span-2">
                       <span class="status-badge px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full"
                             [ngClass]="getStateClass(getQuoteItemState(relatedQuote))">
-                        {{ getQuoteItemState(relatedQuote) }}
+                        {{ getStatusLabel(relatedQuote) }}
                       </span>
                     </div>
 
@@ -651,6 +652,7 @@ export class TenderListComponent implements OnInit {
   private quoteService = inject(QuoteService);
   private localStorage = inject(LocalStorageService);
   private notificationService = inject(NotificationService);
+  private accountService = inject(AccountServiceService);
 
   quotes: Quote[] = [];
   filteredQuotes: Quote[] = [];
@@ -673,6 +675,7 @@ export class TenderListComponent implements OnInit {
   // Expose constants to template
   readonly UI_ROLES = UI_ROLES;
   readonly QUOTE_CATEGORIES = QUOTE_CATEGORIES;
+  readonly QUOTE_STATUSES = QUOTE_STATUSES;
 
   // Filtering
   statusFilter: string = '';
@@ -715,6 +718,9 @@ export class TenderListComponent implements OnInit {
   // Coordinator quote states cache
   coordinatorQuoteStatesMap: Map<string, string> = new Map();
   loadingCoordinatorStates: Set<string> = new Set();
+
+  // Data enrichment maps
+  organizationNames: Map<string, string> = new Map();
 
   
 
@@ -763,7 +769,10 @@ export class TenderListComponent implements OnInit {
       next: (quotes: Quote[]) => {
         // Use quotes as-is to preserve quoteItem.state
         this.quotes = quotes;
-        
+
+        // Enrich with organisation trading names
+        this.enrichQuoteData(quotes);
+
         // Debug: Log quote states and externalId
         console.log(`Loaded ${this.quotes.length} quotes as ${this.selectedRole}`);
         console.log(`Current user ID: ${this.currentUserId}`);
@@ -837,14 +846,21 @@ export class TenderListComponent implements OnInit {
       expectedFulfillmentStartDate: tender.expectedFulfillmentStartDate,
       state: this.mapTenderStateToQuoteState(tender.state),
       // Map category back: 'tendering' -> 'tender', 'coordinator' -> 'coordinator'
-      category: tender.category === TENDER_CATEGORIES.TENDERING ? QUOTE_CATEGORIES.TENDER : tender.category,
+      category: tender.category === 'tendering' ? QUOTE_CATEGORIES.TENDER : QUOTE_CATEGORIES.COORDINATOR,
       externalId: tender.external_id,
-      relatedParty: tender.selectedProviders.map(id => ({
-        id,
-        role: 'Seller',
-        name: tender.provider,
-        '@referredType': 'Organization'
-      })),
+      relatedParty: [
+        ...tender.selectedProviders.map(id => ({
+          id,
+          role: 'Seller',
+          name: tender.provider,
+          '@referredType': 'Organization'
+        })),
+        ...(tender.buyerPartyId ? [{
+          id: tender.buyerPartyId,
+          role: 'Buyer',
+          '@referredType': 'Organization'
+        }] : [])
+      ],
       // Provide a minimal quoteItem array carrying the state and attachment
       quoteItem: [quoteItem],
       note: []
@@ -914,7 +930,7 @@ export class TenderListComponent implements OnInit {
         }
 
         // Filter out if coordinator is in 'pending' state (which maps to 'draft' in GUI)
-        const shouldShow = coordinatorState !== 'pending';
+        const shouldShow = coordinatorState !== QUOTE_STATUSES.PENDING;
         console.log(`[FILTER] Coordinator state is ${coordinatorState}, ${shouldShow ? 'SHOWING' : 'HIDING'} quote`);
         return shouldShow;
       });
@@ -950,7 +966,7 @@ export class TenderListComponent implements OnInit {
     const primaryState = this.getPrimaryState(quote) as QuoteStateType;
     const tender: Tender = {
       id: quote.id,
-      category: quote.category === QUOTE_CATEGORIES.COORDINATOR ? TENDER_CATEGORIES.COORDINATOR : TENDER_CATEGORIES.TENDERING,
+      category: quote.category === QUOTE_CATEGORIES.COORDINATOR ? 'coordinator' : 'tendering',
       state: this.mapQuoteStateToTenderState(primaryState),
       responseDeadline: quote.expectedFulfillmentStartDate || quote.effectiveQuoteCompletionDate || new Date().toISOString(),
       tenderNote: quote.description || '',
@@ -1158,10 +1174,10 @@ export class TenderListComponent implements OnInit {
 
     // If the current user is a provider (seller) and the quote is in progress,
     // automatically update the status to 'approved' after successful PDF upload
-    if (this.selectedRole === UI_ROLES.SELLER && this.getPrimaryState(updatedQuote) === 'inProgress') {
+    if (this.selectedRole === UI_ROLES.SELLER && this.getPrimaryState(updatedQuote) === QUOTE_STATUSES.IN_PROGRESS) {
       console.log('Provider uploaded PDF, updating quote status to approved:', updatedQuote.id);
-      
-      this.quoteService.updateQuoteStatus(updatedQuote.id!, 'approved').subscribe({
+
+      this.quoteService.updateQuoteStatus(updatedQuote.id!, QUOTE_STATUSES.APPROVED).subscribe({
         next: (approvedQuote: Quote) => {
           // Update the quote again with the new status
           const approvedIndex = this.quotes.findIndex(q => q.id === approvedQuote.id);
@@ -1502,7 +1518,7 @@ export class TenderListComponent implements OnInit {
           const siblings = (this.relatedQuotesMap.get(coordinatorKey) || []).filter(q => q.id !== quote.id);
           const toReject = siblings.filter(sib => {
             const state = this.getPrimaryState(sib);
-            return state !== 'accepted' && state !== 'cancelled' && state !== 'rejected';
+            return state !== QUOTE_STATUSES.ACCEPTED && state !== QUOTE_STATUSES.CANCELLED && state !== QUOTE_STATUSES.REJECTED;
           });
 
           if (toReject.length > 0) {
@@ -1633,7 +1649,7 @@ export class TenderListComponent implements OnInit {
 
   getQuoteItemState(quote: Quote): string {
     let state = 'unknown';
-    
+
     if (Array.isArray(quote.quoteItem) && quote.quoteItem.length > 0) {
       // Scan all items and pick the first defined state
       for (const item of quote.quoteItem) {
@@ -1643,13 +1659,54 @@ export class TenderListComponent implements OnInit {
         }
       }
     }
-    
+
     // Apply mapping only for coordinator quotes
     if (quote.category === QUOTE_CATEGORIES.COORDINATOR) {
       return this.mapCoordinatorStatusToGUI(state);
     }
-    
+
     return state;
+  }
+
+  /**
+   * Get user-friendly status label for a quote based on category and role
+   */
+  getStatusLabel(quote: Quote): string {
+    const state = this.getPrimaryState(quote);
+
+    // Determine which label set to use based on category and role
+    let labels: any;
+
+    if (quote.category === QUOTE_CATEGORIES.COORDINATOR) {
+      // Coordinator quotes use their own label set
+      labels = TENDER_COORDINATOR_STATUSES_LABELS;
+    } else if (quote.category === QUOTE_CATEGORIES.TENDER) {
+      // Tender child quotes use labels based on user role
+      labels = this.selectedRole === UI_ROLES.BUYER
+        ? TENDER_RELATED_QUOTES_LABELS_CUSTOMER
+        : TENDER_RELATED_QUOTES_LABELS_PROVIDER;
+    } else {
+      // Shouldn't happen in tender list, but fallback to empty labels
+      return state;
+    }
+
+    // Map status to label
+    switch (state) {
+      case QUOTE_STATUSES.PENDING:
+        return labels.PENDING;
+      case QUOTE_STATUSES.IN_PROGRESS:
+        return labels.IN_PROGRESS;
+      case QUOTE_STATUSES.APPROVED:
+        return labels.APPROVED;
+      case QUOTE_STATUSES.ACCEPTED:
+        return labels.ACCEPTED;
+      case QUOTE_STATUSES.CANCELLED:
+        return labels.CANCELLED;
+      case QUOTE_STATUSES.REJECTED:
+        return labels.REJECTED;
+      default:
+        return state;
+    }
   }
 
   /**
@@ -1689,22 +1746,22 @@ export class TenderListComponent implements OnInit {
 
   isQuoteCancelled(quote: Quote): boolean {
     // Check quoteItem state first (this is where the actual state is stored)
-    if (quote.quoteItem?.some(item => item.state === 'cancelled')) {
+    if (quote.quoteItem?.some(item => item.state === QUOTE_STATUSES.CANCELLED)) {
       return true;
     }
-    
+
     // Fallback to main quote state
-    return quote.state === 'cancelled';
+    return quote.state === QUOTE_STATUSES.CANCELLED;
   }
 
   isQuoteAccepted(quote: Quote): boolean {
     // Check quoteItem state first (this is where the actual state is stored)
-    if (quote.quoteItem?.some(item => item.state === 'accepted')) {
+    if (quote.quoteItem?.some(item => item.state === QUOTE_STATUSES.ACCEPTED)) {
       return true;
     }
-    
+
     // Fallback to main quote state
-    return quote.state === 'accepted';
+    return quote.state === QUOTE_STATUSES.ACCEPTED;
   }
 
   isQuoteFinalized(quote: Quote): boolean {
@@ -1823,7 +1880,7 @@ export class TenderListComponent implements OnInit {
   }
 
   canUpdateState(state: QuoteStateType | undefined): boolean {
-    return state !== 'cancelled' && state !== 'accepted';
+    return state !== QUOTE_STATUSES.CANCELLED && state !== QUOTE_STATUSES.ACCEPTED;
   }
 
   // ========================================
@@ -1843,7 +1900,7 @@ export class TenderListComponent implements OnInit {
     
     // Expandable if NOT pending (backend state "pending" = GUI display "draft")
     // All other states (inProgress/pre-launched, approved/launched, etc.) are expandable
-    return state !== 'pending';
+    return state !== QUOTE_STATUSES.PENDING;
   }
 
   /**
@@ -1913,6 +1970,8 @@ export class TenderListComponent implements OnInit {
       next: (relatedQuotes: Quote[]) => {
         this.relatedQuotesMap.set(coordinatorQuote.id!, relatedQuotes);
         this.loadingRelatedQuotes.delete(coordinatorQuote.id!);
+        // Enrich provider names from the raw Quote objects (relatedParty has real org IDs)
+        this.enrichQuoteData(relatedQuotes);
         console.log(`âœ… Successfully loaded ${relatedQuotes.length} related quotes for coordinator ${this.extractShortId(coordinatorQuote.id)}`);
         if (relatedQuotes.length > 0) {
           console.log('Related quotes:', relatedQuotes.map(q => ({
@@ -1945,31 +2004,61 @@ export class TenderListComponent implements OnInit {
     return quoteId ? this.loadingRelatedQuotes.has(quoteId) : false;
   }
 
+  private isOrganizationId(id: string): boolean {
+    return id.startsWith('urn:ngsi-ld:organization:');
+  }
+
+  /**
+   * Fetch tradingNames for every org URN found in relatedParty across the given quotes.
+   * Populates organizationNames map and triggers change detection on completion.
+   */
+  private enrichQuoteData(quotes: Quote[]): void {
+    const orgIds = new Set<string>();
+
+    quotes.forEach(quote => {
+      quote.relatedParty?.forEach(party => {
+        if (party.id && !this.organizationNames.has(party.id) && this.isOrganizationId(party.id)) {
+          orgIds.add(party.id);
+        }
+      });
+    });
+
+    if (orgIds.size === 0) return;
+
+    const orgRequests = Array.from(orgIds).map(id =>
+      this.accountService.getOrgInfo(id).then(
+        (org: any) => ({ id, name: org?.tradingName || org?.name || id }),
+        () => ({ id, name: id })
+      )
+    );
+
+    Promise.all(orgRequests).then(results => {
+      results.forEach(({ id, name }) => this.organizationNames.set(id, name));
+      // Trigger change detection
+      this.filteredQuotes = [...this.filteredQuotes];
+    });
+  }
+
   /**
    * Get provider name from related party
    */
   getProviderName(quote: Quote): string {
-    console.log('Getting provider name for quote:', quote.id);
-    console.log('RelatedParty array:', quote.relatedParty);
-    
     if (!quote.relatedParty || quote.relatedParty.length === 0) {
-      console.warn('No relatedParty found in quote:', quote.id);
       return 'Unknown Provider';
     }
-    
-    // Log all parties to see what roles exist
-    quote.relatedParty.forEach(party => {
-      console.log('Party:', party.id, 'Role:', party.role, 'Name:', party.name);
-    });
-    
-    const provider = quote.relatedParty?.find(party => party.role?.toLowerCase() === 'seller');
-    
-    if (!provider) {
-      console.warn('No seller found in relatedParty for quote:', quote.id);
-      console.log('Available roles:', quote.relatedParty.map(p => p.role).join(', '));
+
+    const provider = quote.relatedParty.find(party => party.role?.toLowerCase() === 'seller');
+
+    if (!provider?.id) {
+      return 'Unknown Provider';
     }
-    
-    return provider?.name || provider?.id || 'Unknown Provider';
+
+    const enrichedName = this.organizationNames.get(provider.id);
+    if (enrichedName && enrichedName !== provider.id) {
+      return enrichedName;
+    }
+
+    return 'Loading...';
   }
 
   /**
@@ -1980,8 +2069,18 @@ export class TenderListComponent implements OnInit {
       return 'Unknown Customer';
     }
 
-    const buyer = quote.relatedParty?.find(party => party.role?.toLowerCase() === 'buyer');
-    return buyer?.name || buyer?.id || 'Unknown Customer';
+    const buyer = quote.relatedParty.find(party => party.role?.toLowerCase() === 'buyer');
+
+    if (!buyer?.id) {
+      return 'Unknown Customer';
+    }
+
+    const enrichedName = this.organizationNames.get(buyer.id);
+    if (enrichedName && enrichedName !== buyer.id) {
+      return enrichedName;
+    }
+
+    return 'Loading...';
   }
 
   /**
@@ -2004,7 +2103,7 @@ export class TenderListComponent implements OnInit {
     }
 
     // Allow accept only if coordinator is in 'inProgress' state
-    return coordinatorState === 'inProgress';
+    return coordinatorState === QUOTE_STATUSES.IN_PROGRESS;
   }
 
   /**
@@ -2027,7 +2126,7 @@ export class TenderListComponent implements OnInit {
     }
 
     // Allow add attachment only if coordinator is in 'approved' state
-    return coordinatorState === 'approved';
+    return coordinatorState === QUOTE_STATUSES.APPROVED;
   }
 
   /**

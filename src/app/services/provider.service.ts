@@ -3,7 +3,13 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map, catchError, of, forkJoin } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { FilterOptions } from '../models/filter-options.model';
-import { SearchOrganizationsFilters } from '../models/search-organizations-filters.model';
+import {
+  PROVIDER_COUNTRY_LIST_URL,
+  ProviderCountryListResponse,
+  ProviderCountryOption,
+  SearchOrganizationsFilters,
+  parseProviderCountryList,
+} from '../models/search-organizations-filters.model';
 
 export interface Provider {
   id?: string;
@@ -88,7 +94,7 @@ export class ProviderService {
 
   
   getProvidersForTenderNew(filters: SearchOrganizationsFilters): Observable<Provider[]> {
-    const url = environment.searchOrganizationsEndpoint;
+    const url = this.buildBackendUrl(environment.searchOrganizationsEndpoint);
 
     return this.http.post<any>(url, filters).pipe(
       map((response) => {
@@ -101,9 +107,21 @@ export class ProviderService {
     );
   }
 
+  getProviderCountryOptions(locale = 'en'): Observable<ProviderCountryOption[]> {
+    const url = environment.providerCountriesUrl || PROVIDER_COUNTRY_LIST_URL;
+
+    return this.http.get<ProviderCountryListResponse>(url).pipe(
+      map(response => parseProviderCountryList(response, locale)),
+      catchError(err => {
+        console.warn('Provider country list failed:', err);
+        return of<ProviderCountryOption[]>([]);
+      })
+    );
+  }
+
   //Methods for the search engine
   getFilterOptions(): Observable<FilterOptions> {
-    const base = environment.searchOrganizationsEndpoint.replace(/\/searchOrganizations$/, '');
+    const base = this.buildBackendUrl(environment.searchOrganizationsEndpoint).replace(/\/searchOrganizations.*$/, '');
     const categories$ = this.http.get<any>(`${base}/categories`).pipe(
       map(res => (Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [])),
       catchError(err => {
@@ -133,6 +151,16 @@ export class ProviderService {
       countries: countries$,
       complianceLevels: complianceLevels$,
     });
+  }
+
+  private buildBackendUrl(endpoint: string): string {
+    if (/^https?:\/\//i.test(endpoint)) {
+      return endpoint;
+    }
+
+    const baseUrl = environment.BASE_URL.replace(/\/+$/, '');
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${baseUrl}${path}`;
   }
 
 }
